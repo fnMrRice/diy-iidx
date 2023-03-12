@@ -22,7 +22,8 @@
 #ifndef iivx_h
 #define iivx_h
 
-#include "HID.h"
+// #include "HID.h"
+#include <HID.h>
 
 #if !defined(_USING_HID)
 
@@ -33,20 +34,19 @@
 //  Low level key report: up to 6 keys and shift, ctrl etc at once
 extern volatile uint16_t iivx_led;
 
-typedef struct iivxReport     // Pretty self explanitory. Simple state to store all the joystick parameters
+typedef struct iivxReport  // Pretty self explanitory. Simple state to store all the joystick parameters
 {
-  uint16_t  buttons;
-  uint8_t   xAxis;
-  uint8_t   yAxis;
-  uint8_t   zAxis;
+    uint16_t buttons;
+    uint8_t xAxis;
+    uint8_t yAxis;
+    uint8_t zAxis;
 } iivxReport_t;
 
-class iivx_
-{
-public:
-  iivx_();
-  void setState(iivxReport_t *report);
-  inline uint16_t readState(){ return iivx_led; };
+class iivx_ {
+   public:
+    iivx_();
+    void setState(iivxReport_t *report);
+    inline uint16_t readState() { return iivx_led; };
 };
 
 extern iivx_ iivx;
