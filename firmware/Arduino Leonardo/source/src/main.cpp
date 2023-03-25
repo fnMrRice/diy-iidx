@@ -60,6 +60,8 @@ static byte kKeyboardKeyMap[kRowPinCount][kColPinCount] = {
     {KEY_LEFT_ARROW, KEY_TAB, KEY_RIGHT_ARROW, Key_Ununsed},
     {'d', 'f', 'j', 'k'},
 };
+static auto constexpr kEncoderClockwiseKey = 'n';
+static auto constexpr kEncoderAnticlockwiseKey = 'm';
 
 // Keypad
 Keypad keypad = Keypad(makeKeymap(kGamepadKeyMap), kRowPins, kColPins, kRowPinCount, kColPinCount);
@@ -100,12 +102,6 @@ void setup() {
     // 启用串口输出
     Serial.begin(9600);
 
-#if USE_KEYPAD
-#else
-    for (auto &pin : kGamepadKeys) {
-        pinMode(pin, INPUT_PULLUP);
-    }
-#endif
     switch (controlMode) {
     case ControlMode_e::KeyboardMode:
         keypad.begin(makeKeymap(kKeyboardKeyMap));
@@ -113,11 +109,6 @@ void setup() {
         break;
     case ControlMode_e::GamepadMode:
         keypad.begin(makeKeymap(kGamepadKeyMap));
-        // 初始化编码器所用引脚
-        pinMode(kEncoderPhaceA, INPUT_PULLUP);
-        pinMode(kEncoderPhaceB, INPUT_PULLUP);
-        // Init interrupt
-        attachInterrupt(digitalPinToInterrupt(kEncoderPhaceA), doEncL, RISING);
         // 初始化手柄模拟控制
         joystick.begin(false);
         joystick.setXAxisRange(0, kEncoderRpm);
@@ -125,13 +116,18 @@ void setup() {
     default:
         break;
     }
+
+    // 初始化编码器所用引脚
+    pinMode(kEncoderPhaceA, INPUT_PULLUP);
+    pinMode(kEncoderPhaceB, INPUT_PULLUP);
+    // 初始化中断
+    attachInterrupt(digitalPinToInterrupt(kEncoderPhaceA), doEncL, RISING);
 }
 
 void loop() {
     // 用于延时
     uint64_t const start = micros();
 
-#if USE_KEYPAD
     // 使用keypad进行按键输入, 可以用8个引脚输入16个按键
     if (keypad.getKeys()) {
         for (auto index = 0; index < LIST_MAX; index++) {
@@ -152,7 +148,7 @@ void loop() {
                     }
                     break;
                 case HOLD:
-                    Serial.println("key hold");
+                    // Serial.println("key hold");
                     switch (controlMode) {
                     case ControlMode_e::KeyboardMode:
                         Keyboard.press(key.kchar);
@@ -165,7 +161,7 @@ void loop() {
                     }
                     break;
                 case RELEASED:
-                    Serial.println("key released");
+                    // Serial.println("key released");
                     switch (controlMode) {
                     case ControlMode_e::KeyboardMode:
                         Keyboard.release(key.kchar);
@@ -178,7 +174,7 @@ void loop() {
                     }
                     break;
                 case IDLE:
-                    Serial.println("key idle");
+                    // Serial.println("key idle");
                     switch (controlMode) {
                     case ControlMode_e::KeyboardMode:
                         Keyboard.release(key.kchar);
@@ -196,25 +192,27 @@ void loop() {
             }
         }
     }
-#else
-    // 检测按键状态
-    for (auto i = 0; i < kButtonCount; i++) {
-        auto const state = digitalRead(kGamepadKeys[i]);
-        if (state != gamepadLastState[i]) {
-            gamepadLastState[i] = state;
-            if (state == LOW) {
-                joystick.pressButton(kGamepadKeyMap[i]);
-            } else {
-                joystick.releaseButton(kGamepadKeyMap[i]);
-            }
+
+    switch (controlMode) {
+    case ControlMode_e::KeyboardMode:
+        // 发送HID数据
+        if (encL > 0) {
+            Keyboard.press(kEncoderClockwiseKey);
+            Keyboard.release(kEncoderClockwiseKey);
+        } else if (encL < 0) {
+            Keyboard.press(kEncoderAnticlockwiseKey);
+            Keyboard.release(kEncoderAnticlockwiseKey);
         }
-    }
-#endif
-    if (controlMode == ControlMode_e::GamepadMode) {
+        encL = 0;
+        break;
+    case ControlMode_e::GamepadMode:
         // 设置编码器数据
         joystick.setXAxis(encL % kEncoderRpm);
         // 发送HID数据
         joystick.sendState();
+        break;
+    default:
+        break;
     }
 
     // 根据回报率延时
